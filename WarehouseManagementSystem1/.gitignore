@@ -1,0 +1,58 @@
+﻿text
+## Игнорировать временные файлы Visual Studio ##
+
+# Папки сборки
+[Bb]in/
+[Oo]bj/
+
+# Папка Visual Studio
+.vs/
+
+# Файлы пользователя
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Файлы кэша
+*.cache
+*.ncb
+
+## Игнорировать файлы сборки ##
+*.exe
+*.dll
+*.pdb
+*.vshost.*
+
+## Игнорировать папку Data (но сохранить саму папку) ##
+Data/*
+!Data/.gitkeep
+
+# Исключение: НЕ игнорируем .gitkeep файл
+!Data/.gitkeep
+
+## Игнорировать резервные копии ##
+*.bak
+*.tmp
+*.log
+
+## Игнорировать пакеты NuGet ##
+packages/
+*.nupkg
+
+## Файлы для ReSharper ##
+_ReSharper.*
+*.resharper
+
+## Файлы для StyleCop ##
+StyleCop.Cache
+
+## Тестовые результаты ##
+TestResults/
+
+## Прочие временные файлы ##
+*.tmp
+*.temp
+[Tt]humbs.db
+*.db
+*.lock
