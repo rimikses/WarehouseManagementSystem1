@@ -1,0 +1,27 @@
+gitignore
+## Файлы сборки и запуска ##
+[Bb]in/
+[Oo]bj/
+*.exe
+*.dll
+*.pdb
+*.vshost.*
+
+## Настройки и кэш Visual Studio ##
+.vs/
+*.suo
+*.user
+*.userosscache
+
+## Файлы пакетов NuGet ##
+packages/
+*.nupkg
+
+## Файлы данных приложения ##
+Data/
+*.json
+
+## Прочее ##
+*.cache
+*.log
+[Tt]humbs.db
