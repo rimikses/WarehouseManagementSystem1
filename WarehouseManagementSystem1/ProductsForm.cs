@@ -262,16 +262,37 @@ namespace WarehouseManagementSystem1
         {
             try
             {
-                // Обновляем список товаров
+                // 1. ОБНОВЛЯЕМ список товаров из DataService
                 allProducts = dataService.Products ?? new List<Product>();
 
-                // Заполняем фильтр категорий
+                // 2. ЗАПОМИНАЕМ, какая категория была выбрана ДО обновления
+                string previouslySelectedCategory = null;
+                if (cmbCategoryFilter.SelectedIndex > 0)
+                {
+                    previouslySelectedCategory = cmbCategoryFilter.SelectedItem?.ToString();
+                }
+
+                // 3. ПЕРЕЗАПОЛНЯЕМ список категорий (с новыми данными)
                 LoadCategoriesFilter();
 
-                // Применяем фильтры
+                // 4. ПЫТАЕМСЯ ВОССТАНОВИТЬ ВЫБОР КАТЕГОРИИ
+                if (!string.IsNullOrEmpty(previouslySelectedCategory))
+                {
+                    // Ищем эту категорию в обновлённом списке
+                    for (int i = 0; i < cmbCategoryFilter.Items.Count; i++)
+                    {
+                        if (cmbCategoryFilter.Items[i].ToString() == previouslySelectedCategory)
+                        {
+                            cmbCategoryFilter.SelectedIndex = i; // Восстанавливаем выбор
+                            break;
+                        }
+                    }
+                }
+
+                // 5. ПРИМЕНЯЕМ ФИЛЬТРЫ (они учтут либо восстановленную категорию, либо "Все")
                 ApplyFilters();
 
-                // Обновляем статистику
+                // 6. Обновляем статистику
                 UpdateStatistics();
             }
             catch (Exception ex)
@@ -417,9 +438,9 @@ namespace WarehouseManagementSystem1
             var addForm = new AddEditProductForm(null, currentUser);
             if (addForm.ShowDialog() == DialogResult.OK)
             {
-                LoadProducts();
-                MessageBox.Show("Товар успешно добавлен!", "Успех",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Товар успешно добавлен! Вернитесь на вкладку 'Дашборд' для обновления статистики.", "Успех");
+                // Просто закрываем эту форму или оставляем открытой
+                // this.Close(); // <- Можно раскомментировать, если хотим сразу закрыть ProductsForm
             }
         }
 
@@ -475,10 +496,6 @@ namespace WarehouseManagementSystem1
                     // Удаляем товар
                     allProducts.Remove(product);
                     dataService.DeleteProduct(productId);
-
-                    LoadProducts();
-                    MessageBox.Show("Товар успешно удален!", "Успех",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     LoadProducts();
                     MessageBox.Show("Товар успешно удален!", "Успех",

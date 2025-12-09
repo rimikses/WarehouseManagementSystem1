@@ -164,6 +164,7 @@ namespace WarehouseManagementSystem1
         {
             tab.BackColor = Color.White;
 
+            // --- Заголовок ---
             var lblTitle = new Label();
             lblTitle.Text = "📊 Обзор системы";
             lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold);
@@ -172,57 +173,72 @@ namespace WarehouseManagementSystem1
             lblTitle.Size = new Size(300, 35);
             tab.Controls.Add(lblTitle);
 
-            var statsPanel = new Panel();
-            statsPanel.BorderStyle = BorderStyle.FixedSingle;
-            statsPanel.BackColor = Color.AliceBlue;
-            statsPanel.Location = new Point(20, 70);
-            statsPanel.Size = new Size(920, 150);
-            tab.Controls.Add(statsPanel);
+            // --- Панель статистики (ОНА БУДЕТ ОБНОВЛЯТЬСЯ) ---
+            Panel statsPanel = null; // Объявляем, чтобы использовать в обработчике кнопки
+            Label lblProducts = null, lblValue = null, lblUsers = null;
 
-            var productsCount = dataService.Products?.Count ?? 0;
-
-            // Ручной расчет стоимости
-            decimal totalValue = 0;
-            if (dataService.Products != null)
+            Action UpdateStatsPanel = () =>
             {
-                foreach (var product in dataService.Products)
+                if (statsPanel != null) tab.Controls.Remove(statsPanel);
+
+                statsPanel = new Panel();
+                statsPanel.BorderStyle = BorderStyle.FixedSingle;
+                statsPanel.BackColor = Color.AliceBlue;
+                statsPanel.Location = new Point(20, 70);
+                statsPanel.Size = new Size(920, 150);
+                tab.Controls.Add(statsPanel);
+
+                // --- Расчёт актуальных данных ---
+                var productsCount = dataService.Products?.Count ?? 0;
+                decimal totalValue = 0;
+                if (dataService.Products != null)
                 {
-                    totalValue += product.Price * product.Quantity;
+                    // ВАЖНО: Правильный расчёт! Цена * Количество
+                    foreach (var product in dataService.Products)
+                    {
+                        totalValue += product.Price * product.Quantity;
+                    }
                 }
-            }
+                var usersCount = dataService.Users?.Count ?? 0;
 
-            var lblProducts = new Label();
-            lblProducts.Text = $"📦 Всего товаров: {productsCount}";
-            lblProducts.Font = new Font("Segoe UI", 12, FontStyle.Bold);
-            lblProducts.Location = new Point(20, 20);
-            lblProducts.Size = new Size(300, 30);
-            statsPanel.Controls.Add(lblProducts);
+                // --- Отображение данных ---
+                lblProducts = new Label();
+                lblProducts.Text = $"📦 Всего товаров: {productsCount}";
+                lblProducts.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+                lblProducts.Location = new Point(20, 20);
+                lblProducts.Size = new Size(300, 30);
+                statsPanel.Controls.Add(lblProducts);
 
-            var lblValue = new Label();
-            lblValue.Text = $"💰 Общая стоимость: {totalValue:C}";
-            lblValue.Font = new Font("Segoe UI", 12);
-            lblValue.Location = new Point(20, 60);
-            lblValue.Size = new Size(300, 30);
-            statsPanel.Controls.Add(lblValue);
+                lblValue = new Label();
+                lblValue.Text = $"💰 Общая стоимость: {totalValue:C}";
+                lblValue.Font = new Font("Segoe UI", 12);
+                lblValue.Location = new Point(20, 60);
+                lblValue.Size = new Size(300, 30);
+                statsPanel.Controls.Add(lblValue);
 
-            var lblUsers = new Label();
-            lblUsers.Text = $"👥 Пользователей: {dataService.Users?.Count ?? 0}";
-            lblUsers.Font = new Font("Segoe UI", 12);
-            lblUsers.Location = new Point(20, 100);
-            lblUsers.Size = new Size(300, 30);
-            statsPanel.Controls.Add(lblUsers);
+                lblUsers = new Label();
+                lblUsers.Text = $"👥 Пользователей: {usersCount}";
+                lblUsers.Font = new Font("Segoe UI", 12);
+                lblUsers.Location = new Point(20, 100);
+                lblUsers.Size = new Size(300, 30);
+                statsPanel.Controls.Add(lblUsers);
 
-            // Добавляем информацию о поставщиках если есть
-            if (dataService.Suppliers != null && dataService.Suppliers.Count > 0)
-            {
-                var lblSuppliers = new Label();
-                lblSuppliers.Text = $"🏢 Поставщиков: {dataService.Suppliers.Count}";
-                lblSuppliers.Font = new Font("Segoe UI", 12);
-                lblSuppliers.Location = new Point(350, 20);
-                lblSuppliers.Size = new Size(300, 30);
-                statsPanel.Controls.Add(lblSuppliers);
-            }
+                // Добавляем информацию о поставщиках если есть
+                if (dataService.Suppliers != null && dataService.Suppliers.Count > 0)
+                {
+                    var lblSuppliers = new Label();
+                    lblSuppliers.Text = $"🏢 Поставщиков: {dataService.Suppliers.Count}";
+                    lblSuppliers.Font = new Font("Segoe UI", 12);
+                    lblSuppliers.Location = new Point(350, 20);
+                    lblSuppliers.Size = new Size(300, 30);
+                    statsPanel.Controls.Add(lblSuppliers);
+                }
+            };
 
+            // Сразу обновляем панель при создании
+            UpdateStatsPanel();
+
+            // --- Быстрые действия ---
             var actionsTitle = new Label();
             actionsTitle.Text = "🚀 Быстрые действия:";
             actionsTitle.Font = new Font("Segoe UI", 14, FontStyle.Bold);
@@ -230,7 +246,7 @@ namespace WarehouseManagementSystem1
             actionsTitle.Size = new Size(300, 30);
             tab.Controls.Add(actionsTitle);
 
-            // Кнопка управления товарами
+            // Кнопка "Управление товарами"
             var btnProducts = new Button();
             btnProducts.Text = "📦 Управление товарами";
             btnProducts.Font = new Font("Segoe UI", 11);
@@ -241,16 +257,19 @@ namespace WarehouseManagementSystem1
             btnProducts.Click += (s, e) => ShowProductsForm();
             tab.Controls.Add(btnProducts);
 
-            // Кнопка поиска товаров
-            var btnSearch = new Button();
-            btnSearch.Text = "🔍 Поиск товаров";
-            btnSearch.Font = new Font("Segoe UI", 11);
-            btnSearch.ForeColor = Color.White;
-            btnSearch.BackColor = Color.FromArgb(76, 175, 80);
-            btnSearch.Location = new Point(290, 280);
-            btnSearch.Size = new Size(250, 45);
-            btnSearch.Click += (s, e) => ShowSearchForm();
-            tab.Controls.Add(btnSearch);
+            // Кнопка "Обновить статистику" (ГЛАВНОЕ НОВОВВЕДЕНИЕ!)
+            var btnRefresh = new Button();
+            btnRefresh.Text = "🔄 Обновить статистику";
+            btnRefresh.Font = new Font("Segoe UI", 11);
+            btnRefresh.ForeColor = Color.White;
+            btnRefresh.BackColor = Color.FromArgb(255, 152, 0); // Оранжевый
+            btnRefresh.Location = new Point(290, 280);
+            btnRefresh.Size = new Size(250, 45);
+            btnRefresh.Click += (s, e) => {
+                UpdateStatsPanel(); // Вызываем обновление панели
+                UpdateStatus("Статистика обновлена");
+            };
+            tab.Controls.Add(btnRefresh);
 
             // Кнопка для админов и менеджеров
             if (currentUser.Role == UserRole.Admin || currentUser.Role == UserRole.Manager)
@@ -266,7 +285,7 @@ namespace WarehouseManagementSystem1
                 tab.Controls.Add(btnUsers);
             }
 
-            // Панель с подсказками
+            // --- Панель с подсказками ---
             var infoPanel = new Panel();
             infoPanel.BorderStyle = BorderStyle.FixedSingle;
             infoPanel.BackColor = Color.FromArgb(255, 253, 231);
@@ -276,7 +295,8 @@ namespace WarehouseManagementSystem1
 
             var lblInfo = new Label();
             lblInfo.Text = $"💡 Подсказка: Ваша роль '{GetRoleName(currentUser.Role)}' позволяет " +
-                          GetRolePermissions(currentUser.Role);
+                          GetRolePermissions(currentUser.Role) + "\n" +
+                          "После добавления товара нажмите 'Обновить статистику'.";
             lblInfo.Font = new Font("Segoe UI", 10);
             lblInfo.Location = new Point(15, 15);
             lblInfo.Size = new Size(890, 70);
@@ -430,12 +450,11 @@ namespace WarehouseManagementSystem1
                 $"Текущий пользователь: {currentUser.Username}\n" +
                 $"Роль: {GetRoleName(currentUser.Role)}\n" +
                 $"Дата: {DateTime.Now:dd.MM.yyyy}\n\n" +
-                "© 2024 Складской учет",
+                $"© {DateTime.Now.Year} Складской учет", 
                 "О программе",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information
             );
-            UpdateStatus("Готово");
         }
 
         private void ExitApplication()

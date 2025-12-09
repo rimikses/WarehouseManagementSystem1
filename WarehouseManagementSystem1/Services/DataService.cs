@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows.Forms;
 using Newtonsoft.Json;
 using WarehouseManagementSystem1.Enums;
 using WarehouseManagementSystem1.Models;
@@ -17,6 +18,7 @@ namespace WarehouseManagementSystem1.Services
         public List<Product> Products { get; private set; }
         public List<Category> Categories { get; private set; }
         public List<Supplier> Suppliers { get; private set; }
+        public List<Transaction> Transactions { get; private set; } = new List<Transaction>(); // НОВОЕ свойство
 
         private string _dataPath = "Data";
 
@@ -193,6 +195,7 @@ namespace WarehouseManagementSystem1.Services
                 SaveToFile("products.json", Products);
                 SaveToFile("categories.json", Categories);
                 SaveToFile("suppliers.json", Suppliers);
+                SaveToFile("transactions.json", Transactions); // НОВОЕ: сохраняем транзакции
 
                 Console.WriteLine("✅ Все данные сохранены");
             }
@@ -224,6 +227,7 @@ namespace WarehouseManagementSystem1.Services
                 Products = LoadFromFile<Product>("products.json") ?? new List<Product>();
                 Categories = LoadFromFile<Category>("categories.json") ?? new List<Category>();
                 Suppliers = LoadFromFile<Supplier>("suppliers.json") ?? new List<Supplier>();
+                Transactions = LoadFromFile<Transaction>("transactions.json") ?? new List<Transaction>(); // НОВОЕ: загружаем транзакции
 
                 Console.WriteLine("✅ Данные загружены");
             }
@@ -282,34 +286,26 @@ namespace WarehouseManagementSystem1.Services
             return $"DataService:\n" +
                    $"• Users: {Users?.Count ?? 0}\n" +
                    $"• Products: {Products?.Count ?? 0}\n" +
+                   $"• Transactions: {Transactions?.Count ?? 0}\n" +
                    $"• Папка Data: {Path.GetFullPath(_dataPath)}";
         }
 
-        // НОВЫЙ МЕТОД: Сохранение данных
         public void SaveToJson()
         {
             SaveAllData();
         }
 
-        // НОВЫЙ МЕТОД: Добавление товара
         public void AddProduct(Product product)
         {
             if (Products == null) Products = new List<Product>();
 
-            // Находим максимальный ID
-            int maxId = 0;
-            foreach (var p in Products)
-            {
-                if (p.Id > maxId) maxId = p.Id;
-            }
-
+            int maxId = Products.Any() ? Products.Max(p => p.Id) : 0;
             product.Id = maxId + 1;
             product.LastUpdated = DateTime.Now;
             Products.Add(product);
             SaveAllData();
         }
 
-        // НОВЫЙ МЕТОД: Обновление товара
         public void UpdateProduct(Product updatedProduct)
         {
             if (Products == null) return;
@@ -326,7 +322,6 @@ namespace WarehouseManagementSystem1.Services
             }
         }
 
-        // НОВЫЙ МЕТОД: Удаление товара
         public void DeleteProduct(int productId)
         {
             if (Products == null) return;
@@ -337,6 +332,86 @@ namespace WarehouseManagementSystem1.Services
                 Products.Remove(productToRemove);
                 SaveAllData();
             }
+        }
+
+        // ===== МЕТОДЫ ДЛЯ ОПЕРАЦИЙ (НОВЫЕ) =====
+
+        public bool ProcessTransaction(Transaction transaction)
+        {
+            try
+            {
+                // 1. Находим товар
+                var product = Products?.FirstOrDefault(p => p.Id == transaction.ProductId);
+                if (product == null)
+                {
+                    MessageBox.Show("Ошибка: товар не найден!", "Ошибка операции",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+
+                // 2. Проверяем остаток для РАСХОДА или ПЕРЕМЕЩЕНИЯ
+                if (transaction.Type == TransactionType.Расход || transaction.Type == TransactionType.Перемещение)
+                {
+                    if (product.Quantity < transaction.Quantity)
+                    {
+                        MessageBox.Show($"Ошибка: недостаточно товара на складе!\nДоступно: {product.Quantity}, требуется: {transaction.Quantity}",
+                            "Ошибка операции", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return false;
+                    }
+                }
+
+                // 3. Выполняем операцию
+                switch (transaction.Type)
+                {
+                    case TransactionType.Приход:
+                        product.Quantity += transaction.Quantity;
+                        transaction.ToLocation = transaction.ToLocation ?? product.Location;
+                        break;
+                    case TransactionType.Расход:
+                        product.Quantity -= transaction.Quantity;
+                        transaction.FromLocation = transaction.FromLocation ?? product.Location;
+                        break;
+                    case TransactionType.Перемещение:
+                        product.Quantity -= transaction.Quantity;
+                        transaction.FromLocation = transaction.FromLocation ?? product.Location;
+                        break;
+                }
+
+                product.LastUpdated = DateTime.Now;
+
+                // 4. Записываем операцию в журнал
+                transaction.Id = Transactions.Any() ? Transactions.Max(t => t.Id) + 1 : 1;
+                transaction.TransactionDate = DateTime.Now;
+                Transactions.Add(transaction);
+
+                // 5. Сохраняем всё
+                SaveAllData();
+
+                Console.WriteLine($"✅ Операция проведена: {transaction.Type} товара '{product.Name}' x{transaction.Quantity}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Критическая ошибка:\n{ex.Message}", "Ошибка системы",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        public List<Transaction> GetProductTransactions(int productId)
+        {
+            return Transactions
+                ?.Where(t => t.ProductId == productId)
+                .OrderByDescending(t => t.TransactionDate)
+                .ToList() ?? new List<Transaction>();
+        }
+
+        public List<Transaction> GetTransactionsByDate(DateTime startDate, DateTime endDate)
+        {
+            return Transactions
+                ?.Where(t => t.TransactionDate >= startDate && t.TransactionDate <= endDate)
+                .OrderByDescending(t => t.TransactionDate)
+                .ToList() ?? new List<Transaction>();
         }
     }
 }
