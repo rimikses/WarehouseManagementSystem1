@@ -3,527 +3,784 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using WarehouseManagementSystem1.Enums;
 using WarehouseManagementSystem1.Models;
 using WarehouseManagementSystem1.Services;
 
 namespace WarehouseManagementSystem1
 {
-    public partial class ProductsForm : Form
+    public class ProductsForm : Form
     {
-        private DataService dataService;
-        private User currentUser;
-        private List<Product> allProducts;
-
-        // Элементы управления
-        private DataGridView productsGrid;
+        private DataGridView dataGridView1;
+        private Button btnAdd;
+        private Button btnDelete;
+        private Button btnEdit;
+        private Button btnRefresh;
         private TextBox txtSearch;
         private ComboBox cmbCategoryFilter;
-        private Button btnAddProduct;
-        private Button btnEditProduct;
-        private Button btnDeleteProduct;
-        private Button btnRefresh;
+        private ComboBox cmbSortBy;
+        private Button btnExport;
         private Label lblStats;
+        private User currentUser;
+        private NumericUpDown numMinPrice;
+        private NumericUpDown numMaxPrice;
+        private NumericUpDown numMinQuantity;
+        private NumericUpDown numMaxQuantity;
+        private Button btnClearFilters;
+        private Label lblFilterCount;
+
+        // Коллекция всех товаров для фильтрации
+        private List<Product> allProducts = new List<Product>();
+
+        public ProductsForm()
+        {
+            InitializeComponent();
+            LoadAllProducts();
+            ApplyFiltersAndSort();
+            UpdateStats();
+        }
 
         public ProductsForm(User user)
         {
             currentUser = user;
-            dataService = DataService.Instance;
-            allProducts = dataService.Products ?? new List<Product>();
-
             InitializeComponent();
-            CreateProductsForm();
-            LoadProducts();
+            LoadAllProducts();
+            ApplyFiltersAndSort();
+            UpdateStats();
+
+            // ↓↓↓ ДОБАВЛЯЕМ ЭТОТ КОД ПОСЛЕ UpdateStats() ↓↓↓
+            // Подписываемся на событие обновления данных
+            DataService.Instance.DataChanged += DataService_DataChanged;
         }
 
-        private void CreateProductsForm()
+        // ↓↓↓ ДОБАВЛЯЕМ ЭТОТ МЕТОД В КЛАСС ↓↓↓
+        private void DataService_DataChanged()
         {
-            // Основные настройки формы
-            this.Text = "📦 Управление товарами";
-            this.Size = new Size(1100, 700);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.White;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
-            this.MaximizeBox = false;
-
-            // ===== 1. ПАНЕЛЬ ИНСТРУМЕНТОВ =====
-            var toolPanel = new Panel();
-            toolPanel.BackColor = Color.FromArgb(240, 240, 240);
-            toolPanel.BorderStyle = BorderStyle.FixedSingle;
-            toolPanel.Location = new Point(10, 10);
-            toolPanel.Size = new Size(1065, 80);
-            this.Controls.Add(toolPanel);
-
-            // Заголовок
-            var lblTitle = new Label();
-            lblTitle.Text = "📦 Управление товарами";
-            lblTitle.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-            lblTitle.ForeColor = Color.FromArgb(33, 150, 243);
-            lblTitle.Location = new Point(15, 20);
-            lblTitle.Size = new Size(250, 30);
-            toolPanel.Controls.Add(lblTitle);
-
-            // Кнопка "Обновить"
-            btnRefresh = new Button();
-            btnRefresh.Text = "🔄 Обновить";
-            btnRefresh.Font = new Font("Segoe UI", 10);
-            btnRefresh.ForeColor = Color.White;
-            btnRefresh.BackColor = Color.FromArgb(33, 150, 243);
-            btnRefresh.Location = new Point(280, 20);
-            btnRefresh.Size = new Size(120, 35);
-            btnRefresh.Click += (s, e) => LoadProducts();
-            toolPanel.Controls.Add(btnRefresh);
-
-            // Кнопка "Добавить"
-            btnAddProduct = new Button();
-            btnAddProduct.Text = "➕ Добавить товар";
-            btnAddProduct.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-            btnAddProduct.ForeColor = Color.White;
-            btnAddProduct.BackColor = Color.FromArgb(76, 175, 80); // Зеленый
-            btnAddProduct.Location = new Point(410, 20);
-            btnAddProduct.Size = new Size(150, 35);
-            btnAddProduct.Click += BtnAddProduct_Click;
-            btnAddProduct.Enabled = currentUser.Role == UserRole.Admin || currentUser.Role == UserRole.Manager;
-            toolPanel.Controls.Add(btnAddProduct);
-
-            // Кнопка "Редактировать"
-            btnEditProduct = new Button();
-            btnEditProduct.Text = "✏️ Редактировать";
-            btnEditProduct.Font = new Font("Segoe UI", 10);
-            btnEditProduct.ForeColor = Color.White;
-            btnEditProduct.BackColor = Color.FromArgb(255, 152, 0); // Оранжевый
-            btnEditProduct.Location = new Point(570, 20);
-            btnEditProduct.Size = new Size(150, 35);
-            btnEditProduct.Click += BtnEditProduct_Click;
-            btnEditProduct.Enabled = currentUser.Role == UserRole.Admin || currentUser.Role == UserRole.Manager;
-            toolPanel.Controls.Add(btnEditProduct);
-
-            // Кнопка "Удалить"
-            btnDeleteProduct = new Button();
-            btnDeleteProduct.Text = "🗑️ Удалить";
-            btnDeleteProduct.Font = new Font("Segoe UI", 10);
-            btnDeleteProduct.ForeColor = Color.White;
-            btnDeleteProduct.BackColor = Color.FromArgb(244, 67, 54); // Красный
-            btnDeleteProduct.Location = new Point(730, 20);
-            btnDeleteProduct.Size = new Size(120, 35);
-            btnDeleteProduct.Click += BtnDeleteProduct_Click;
-            btnDeleteProduct.Enabled = currentUser.Role == UserRole.Admin;
-            toolPanel.Controls.Add(btnDeleteProduct);
-
-            // Статистика
-            lblStats = new Label();
-            lblStats.Font = new Font("Segoe UI", 10);
-            lblStats.ForeColor = Color.DarkSlateGray;
-            lblStats.Location = new Point(860, 20);
-            lblStats.Size = new Size(200, 35);
-            lblStats.TextAlign = ContentAlignment.MiddleRight;
-            toolPanel.Controls.Add(lblStats);
-
-            // ===== 2. ПАНЕЛЬ ФИЛЬТРОВ =====
-            var filterPanel = new Panel();
-            filterPanel.BorderStyle = BorderStyle.FixedSingle;
-            filterPanel.Location = new Point(10, 100);
-            filterPanel.Size = new Size(1065, 70);
-            this.Controls.Add(filterPanel);
-
-            // Поиск по названию
-            var lblSearch = new Label();
-            lblSearch.Text = "🔍 Поиск:";
-            lblSearch.Font = new Font("Segoe UI", 10);
-            lblSearch.Location = new Point(15, 20);
-            lblSearch.Size = new Size(70, 25);
-            filterPanel.Controls.Add(lblSearch);
-
-            txtSearch = new TextBox();
-            txtSearch.Location = new Point(90, 20);
-            txtSearch.Size = new Size(200, 25);
-            txtSearch.Font = new Font("Segoe UI", 10);
-            txtSearch.TextChanged += TxtSearch_TextChanged;
-            filterPanel.Controls.Add(txtSearch);
-
-            // Фильтр по категории
-            var lblCategory = new Label();
-            lblCategory.Text = "📁 Категория:";
-            lblCategory.Font = new Font("Segoe UI", 10);
-            lblCategory.Location = new Point(310, 20);
-            lblCategory.Size = new Size(90, 25);
-            filterPanel.Controls.Add(lblCategory);
-
-            cmbCategoryFilter = new ComboBox();
-            cmbCategoryFilter.Location = new Point(405, 20);
-            cmbCategoryFilter.Size = new Size(200, 25);
-            cmbCategoryFilter.Font = new Font("Segoe UI", 10);
-            cmbCategoryFilter.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbCategoryFilter.SelectedIndexChanged += CmbCategoryFilter_SelectedIndexChanged;
-            filterPanel.Controls.Add(cmbCategoryFilter);
-
-            // Фильтр по наличию
-            var lblStock = new Label();
-            lblStock.Text = "📊 Наличие:";
-            lblStock.Font = new Font("Segoe UI", 10);
-            lblStock.Location = new Point(620, 20);
-            lblStock.Size = new Size(80, 25);
-            filterPanel.Controls.Add(lblStock);
-
-            var cmbStockFilter = new ComboBox();
-            cmbStockFilter.Location = new Point(705, 20);
-            cmbStockFilter.Size = new Size(150, 25);
-            cmbStockFilter.Font = new Font("Segoe UI", 10);
-            cmbStockFilter.Items.AddRange(new string[] { "Все", "В наличии", "Нет в наличии", "Мало (<10)" });
-            cmbStockFilter.SelectedIndex = 0;
-            cmbStockFilter.SelectedIndexChanged += (s, e) => ApplyFilters();
-            filterPanel.Controls.Add(cmbStockFilter);
-
-            // Кнопка сброса фильтров
-            var btnResetFilters = new Button();
-            btnResetFilters.Text = "❌ Сбросить";
-            btnResetFilters.Font = new Font("Segoe UI", 10);
-            btnResetFilters.Location = new Point(870, 20);
-            btnResetFilters.Size = new Size(100, 25);
-            btnResetFilters.Click += (s, e) =>
+            // Проверяем, что форма еще открыта и видима
+            if (this.IsHandleCreated && !this.IsDisposed && this.Visible)
             {
-                txtSearch.Text = "";
-                cmbCategoryFilter.SelectedIndex = -1;
-                cmbStockFilter.SelectedIndex = 0;
-                LoadProducts();
-            };
-            filterPanel.Controls.Add(btnResetFilters);
+                // Вызываем обновление в основном потоке
+                if (this.InvokeRequired)
+                {
+                    this.Invoke((MethodInvoker)delegate
+                    {
+                        LoadAllProducts();
+                        ApplyFiltersAndSort();
+                        UpdateStats();
+                    });
+                }
+                else
+                {
+                    LoadAllProducts();
+                    ApplyFiltersAndSort();
+                    UpdateStats();
+                }
+            }
 
-            // ===== 3. ТАБЛИЦА ТОВАРОВ =====
-            productsGrid = new DataGridView();
-            productsGrid.Location = new Point(10, 180);
-            productsGrid.Size = new Size(1065, 470);
-            productsGrid.AllowUserToAddRows = false;
-            productsGrid.ReadOnly = true;
-            productsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            productsGrid.RowHeadersVisible = false;
-            productsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            productsGrid.MultiSelect = false;
-            productsGrid.CellDoubleClick += ProductsGrid_CellDoubleClick;
-
-            // Настраиваем колонки
-            SetupDataGridColumns();
-
-            this.Controls.Add(productsGrid);
         }
-
-        private void SetupDataGridColumns()
+        protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            productsGrid.Columns.Clear();
-
-            // ID
-            productsGrid.Columns.Add("Id", "ID");
-            productsGrid.Columns["Id"].Width = 50;
-            productsGrid.Columns["Id"].ReadOnly = true;
-
-            // Название
-            productsGrid.Columns.Add("Name", "Название");
-            productsGrid.Columns["Name"].Width = 200;
-
-            // Цена
-            var priceColumn = new DataGridViewTextBoxColumn();
-            priceColumn.Name = "Price";
-            priceColumn.HeaderText = "Цена";
-            priceColumn.DefaultCellStyle.Format = "C";
-            priceColumn.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-            productsGrid.Columns.Add(priceColumn);
-
-            // Количество
-            productsGrid.Columns.Add("Quantity", "Кол-во");
-            productsGrid.Columns["Quantity"].Width = 80;
-            productsGrid.Columns["Quantity"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-
-            // Категория
-            productsGrid.Columns.Add("Category", "Категория");
-            productsGrid.Columns["Category"].Width = 120;
-
-            // Артикул
-            productsGrid.Columns.Add("SKU", "Артикул");
-            productsGrid.Columns["SKU"].Width = 120;
-
-            // Местоположение
-            productsGrid.Columns.Add("Location", "Место");
-            productsGrid.Columns["Location"].Width = 120;
-
-            // Штрихкод
-            productsGrid.Columns.Add("Barcode", "Штрихкод");
-            productsGrid.Columns["Barcode"].Width = 120;
-
-            // Обновлено
-            var dateColumn = new DataGridViewTextBoxColumn();
-            dateColumn.Name = "LastUpdated";
-            dateColumn.HeaderText = "Обновлено";
-            dateColumn.DefaultCellStyle.Format = "dd.MM.yyyy";
-            dateColumn.Width = 100;
-            productsGrid.Columns.Add(dateColumn);
+            // Отписываемся от события при закрытии формы
+            DataService.Instance.DataChanged -= DataService_DataChanged;
+            base.OnFormClosing(e);
         }
 
-        private void LoadProducts()
+
+        private void InitializeComponent()
+        {
+            this.Text = "📦 Управление товарами";
+            this.Size = new Size(1300, 750);
+            this.StartPosition = FormStartPosition.CenterScreen;
+
+            // Панель фильтров
+            var filterPanel = new Panel { Dock = DockStyle.Top, Height = 130, BackColor = Color.WhiteSmoke, BorderStyle = BorderStyle.FixedSingle };
+
+            int y = 10;
+            int x = 10;
+
+            // 🔍 Поиск по названию и артикулу
+            var lblSearch = new Label { Text = "Поиск:", Location = new Point(x, y), Size = new Size(50, 25), TextAlign = ContentAlignment.MiddleLeft };
+            txtSearch = new TextBox
+            {
+                Location = new Point(x + 55, y),
+                Size = new Size(200, 25),
+                Text = "Название, артикул, описание..." // ЗАМЕНИЛИ PlaceholderText на Text
+            };
+
+            // Добавляем обработчики для имитации placeholder
+            txtSearch.ForeColor = Color.Gray;
+            txtSearch.Enter += (s, e) =>
+            {
+                if (txtSearch.Text == "Название, артикул, описание...")
+                {
+                    txtSearch.Text = "";
+                    txtSearch.ForeColor = Color.Black;
+                }
+            };
+            txtSearch.Leave += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(txtSearch.Text))
+                {
+                    txtSearch.Text = "Название, артикул, описание...";
+                    txtSearch.ForeColor = Color.Gray;
+                }
+            };
+
+            txtSearch.TextChanged += TxtSearch_TextChanged;
+            y += 30;
+
+            // 🏷️ Фильтр по категории
+            var lblCategory = new Label { Text = "Категория:", Location = new Point(x, y), Size = new Size(70, 25), TextAlign = ContentAlignment.MiddleLeft };
+            cmbCategoryFilter = new ComboBox
+            {
+                Location = new Point(x + 75, y),
+                Size = new Size(150, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbCategoryFilter.SelectedIndexChanged += CmbCategoryFilter_SelectedIndexChanged;
+            y += 30;
+
+            // 💰 Фильтр по цене
+            var lblPrice = new Label { Text = "Цена от:", Location = new Point(x, y), Size = new Size(60, 25), TextAlign = ContentAlignment.MiddleLeft };
+            numMinPrice = new NumericUpDown
+            {
+                Location = new Point(x + 65, y),
+                Size = new Size(80, 25),
+                Minimum = 0,
+                Maximum = 1000000,
+                DecimalPlaces = 2,
+                Value = 0
+            };
+            numMinPrice.ValueChanged += Filter_ValueChanged;
+
+            var lblPriceTo = new Label { Text = "до:", Location = new Point(x + 150, y), Size = new Size(30, 25), TextAlign = ContentAlignment.MiddleLeft };
+            numMaxPrice = new NumericUpDown
+            {
+                Location = new Point(x + 185, y),
+                Size = new Size(80, 25),
+                Minimum = 0,
+                Maximum = 1000000,
+                DecimalPlaces = 2,
+                Value = 1000000
+            };
+            numMaxPrice.ValueChanged += Filter_ValueChanged;
+            y += 30;
+
+            // 📦 Фильтр по количеству
+            var lblQuantity = new Label { Text = "Кол-во от:", Location = new Point(x, y), Size = new Size(70, 25), TextAlign = ContentAlignment.MiddleLeft };
+            numMinQuantity = new NumericUpDown
+            {
+                Location = new Point(x + 75, y),
+                Size = new Size(80, 25),
+                Minimum = 0,
+                Maximum = 10000,
+                Value = 0
+            };
+            numMinQuantity.ValueChanged += Filter_ValueChanged;
+
+            var lblQuantityTo = new Label { Text = "до:", Location = new Point(x + 160, y), Size = new Size(30, 25), TextAlign = ContentAlignment.MiddleLeft };
+            numMaxQuantity = new NumericUpDown
+            {
+                Location = new Point(x + 195, y),
+                Size = new Size(80, 25),
+                Minimum = 0,
+                Maximum = 10000,
+                Value = 10000
+            };
+            numMaxQuantity.ValueChanged += Filter_ValueChanged;
+
+            // Вторая колонка фильтров (x = 300)
+            x = 300;
+            y = 10;
+
+            // 📊 Сортировка
+            var lblSort = new Label { Text = "Сортировка:", Location = new Point(x, y), Size = new Size(80, 25), TextAlign = ContentAlignment.MiddleLeft };
+            cmbSortBy = new ComboBox
+            {
+                Location = new Point(x + 85, y),
+                Size = new Size(200, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cmbSortBy.Items.AddRange(new[] {
+                "Название (А-Я)", "Название (Я-А)",
+                "Цена (по возрастанию)", "Цена (по убыванию)",
+                "Количество (по возрастанию)", "Количество (по убыванию)",
+                "Артикул (А-Я)", "Артикул (Я-А)",
+                "Дата обновления (сначала новые)"
+            });
+            cmbSortBy.SelectedIndex = 0;
+            cmbSortBy.SelectedIndexChanged += CmbSortBy_SelectedIndexChanged;
+            y += 30;
+
+            // Кнопки управления фильтрами
+            btnClearFilters = new Button
+            {
+                Text = "❌ Очистить фильтры",
+                Location = new Point(x, y),
+                Size = new Size(150, 30),
+                BackColor = Color.LightGray,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnClearFilters.Click += BtnClearFilters_Click;
+
+            lblFilterCount = new Label
+            {
+                Location = new Point(x + 160, y),
+                Size = new Size(150, 30),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Arial", 9, FontStyle.Bold),
+                ForeColor = Color.DarkBlue
+            };
+
+            // Третья колонка - кнопки действий
+            x = 600;
+            y = 10;
+
+            btnAdd = new Button
+            {
+                Text = "➕ Добавить товар",
+                Location = new Point(x, y),
+                Size = new Size(140, 35),
+                BackColor = Color.FromArgb(76, 175, 80),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            btnAdd.Click += BtnAdd_Click;
+
+            btnEdit = new Button
+            {
+                Text = "✏️ Редактировать",
+                Location = new Point(x + 150, y),
+                Size = new Size(140, 35),
+                BackColor = Color.FromArgb(33, 150, 243),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
+            };
+            btnEdit.Click += BtnEdit_Click;
+            y += 40;
+
+            btnDelete = new Button
+            {
+                Text = "🗑️ Удалить",
+                Location = new Point(x, y),
+                Size = new Size(140, 35),
+                BackColor = Color.FromArgb(244, 67, 54),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Enabled = false
+            };
+            btnDelete.Click += BtnDelete_Click;
+
+            btnRefresh = new Button
+            {
+                Text = "🔄 Обновить",
+                Location = new Point(x + 150, y),
+                Size = new Size(140, 35),
+                BackColor = Color.FromArgb(255, 193, 7),
+                ForeColor = Color.Black,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnRefresh.Click += BtnRefresh_Click;
+
+            btnExport = new Button
+            {
+                Text = "📥 Экспорт в CSV",
+                Location = new Point(x + 300, 10),
+                Size = new Size(140, 65),
+                BackColor = Color.FromArgb(156, 39, 176),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            btnExport.Click += BtnExport_Click;
+
+            // Добавляем все контролы на панель фильтров
+            filterPanel.Controls.AddRange(new Control[] {
+                lblSearch, txtSearch,
+                lblCategory, cmbCategoryFilter,
+                lblPrice, numMinPrice, lblPriceTo, numMaxPrice,
+                lblQuantity, numMinQuantity, lblQuantityTo, numMaxQuantity,
+                lblSort, cmbSortBy,
+                btnClearFilters, lblFilterCount,
+                btnAdd, btnEdit, btnDelete, btnRefresh, btnExport
+            });
+
+            // DataGridView
+            dataGridView1 = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                ReadOnly = true,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None
+            };
+            dataGridView1.SelectionChanged += DataGridView1_SelectionChanged;
+            dataGridView1.CellDoubleClick += DataGridView1_CellDoubleClick;
+
+            // Панель статистики
+            var statsPanel = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = Color.LightGray };
+            lblStats = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Arial", 10, FontStyle.Bold) };
+            statsPanel.Controls.Add(lblStats);
+
+            this.Controls.AddRange(new Control[] { dataGridView1, statsPanel, filterPanel });
+        }
+
+        private void LoadAllProducts()
         {
             try
             {
-                // 1. ОБНОВЛЯЕМ список товаров из DataService
-                allProducts = dataService.Products ?? new List<Product>();
-
-                // 2. ЗАПОМИНАЕМ, какая категория была выбрана ДО обновления
-                string previouslySelectedCategory = null;
-                if (cmbCategoryFilter.SelectedIndex > 0)
-                {
-                    previouslySelectedCategory = cmbCategoryFilter.SelectedItem?.ToString();
-                }
-
-                // 3. ПЕРЕЗАПОЛНЯЕМ список категорий (с новыми данными)
-                LoadCategoriesFilter();
-
-                // 4. ПЫТАЕМСЯ ВОССТАНОВИТЬ ВЫБОР КАТЕГОРИИ
-                if (!string.IsNullOrEmpty(previouslySelectedCategory))
-                {
-                    // Ищем эту категорию в обновлённом списке
-                    for (int i = 0; i < cmbCategoryFilter.Items.Count; i++)
-                    {
-                        if (cmbCategoryFilter.Items[i].ToString() == previouslySelectedCategory)
-                        {
-                            cmbCategoryFilter.SelectedIndex = i; // Восстанавливаем выбор
-                            break;
-                        }
-                    }
-                }
-
-                // 5. ПРИМЕНЯЕМ ФИЛЬТРЫ (они учтут либо восстановленную категорию, либо "Все")
-                ApplyFilters();
-
-                // 6. Обновляем статистику
-                UpdateStatistics();
+                allProducts = DataService.LoadProducts();
+                LoadCategories();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка загрузки товаров:\n{ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Ошибка загрузки товаров: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                allProducts = new List<Product>();
             }
         }
 
-        private void LoadCategoriesFilter()
+        private void LoadCategories()
         {
-            cmbCategoryFilter.Items.Clear();
-            cmbCategoryFilter.Items.Add("Все категории");
-
-            if (allProducts != null)
+            try
             {
                 var categories = allProducts
-                    .Where(p => !string.IsNullOrEmpty(p.Category))
                     .Select(p => p.Category)
                     .Distinct()
                     .OrderBy(c => c)
                     .ToList();
 
-                foreach (var category in categories)
-                {
-                    cmbCategoryFilter.Items.Add(category);
-                }
+                cmbCategoryFilter.Items.Clear();
+                cmbCategoryFilter.Items.Add("Все категории");
+                cmbCategoryFilter.Items.AddRange(categories.ToArray());
+                cmbCategoryFilter.SelectedIndex = 0;
             }
-
-            cmbCategoryFilter.SelectedIndex = 0;
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка загрузки категорий: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
-        private void ApplyFilters()
+        private void ApplyFiltersAndSort()
         {
-            if (allProducts == null) return;
-
-            var filteredProducts = allProducts.AsEnumerable();
-
-            // Фильтр по поиску
-            if (!string.IsNullOrWhiteSpace(txtSearch.Text))
+            if (allProducts == null || allProducts.Count == 0)
             {
-                string searchText = txtSearch.Text.ToLower();
-                filteredProducts = filteredProducts.Where(p =>
-                    (p.Name != null && p.Name.ToLower().Contains(searchText)) ||
-                    (p.SKU != null && p.SKU.ToLower().Contains(searchText)) ||
-                    (p.Barcode != null && p.Barcode.Contains(searchText)) ||
-                    (p.Description != null && p.Description.ToLower().Contains(searchText)));
+                dataGridView1.DataSource = null;
+                UpdateStats();
+                return;
             }
 
-            // Фильтр по категории
-            if (cmbCategoryFilter.SelectedIndex > 0 && cmbCategoryFilter.SelectedItem != null)
+            try
             {
-                string selectedCategory = cmbCategoryFilter.SelectedItem.ToString();
-                filteredProducts = filteredProducts.Where(p => p.Category == selectedCategory);
+                // 1. Применяем все фильтры
+                var filtered = allProducts.AsEnumerable();
+
+                // Поиск по тексту (игнорируем placeholder текст)
+                var searchText = txtSearch.Text;
+                if (searchText != "Название, артикул, описание..." && !string.IsNullOrWhiteSpace(searchText))
+                {
+                    searchText = searchText.ToLower();
+                    filtered = filtered.Where(p =>
+                        (p.Name != null && p.Name.ToLower().Contains(searchText)) ||
+                        (p.Article != null && p.Article.ToLower().Contains(searchText)) ||
+                        (p.Description != null && p.Description.ToLower().Contains(searchText)));
+                }
+
+                // Фильтр по категории
+                if (cmbCategoryFilter.SelectedIndex > 0)
+                {
+                    var selectedCategory = cmbCategoryFilter.SelectedItem.ToString();
+                    filtered = filtered.Where(p => p.Category == selectedCategory);
+                }
+
+                // Фильтр по цене
+                filtered = filtered.Where(p => p.Price >= numMinPrice.Value && p.Price <= numMaxPrice.Value);
+
+                // Фильтр по количеству
+                filtered = filtered.Where(p => p.Quantity >= (int)numMinQuantity.Value && p.Quantity <= (int)numMaxQuantity.Value);
+
+                // 2. Применяем сортировку
+                switch (cmbSortBy.SelectedIndex)
+                {
+                    case 0: filtered = filtered.OrderBy(p => p.Name); break; // Название (А-Я)
+                    case 1: filtered = filtered.OrderByDescending(p => p.Name); break; // Название (Я-А)
+                    case 2: filtered = filtered.OrderBy(p => p.Price); break; // Цена (возрастание)
+                    case 3: filtered = filtered.OrderByDescending(p => p.Price); break; // Цена (убывание)
+                    case 4: filtered = filtered.OrderBy(p => p.Quantity); break; // Количество (возрастание)
+                    case 5: filtered = filtered.OrderByDescending(p => p.Quantity); break; // Количество (убывание)
+                    case 6: filtered = filtered.OrderBy(p => p.Article); break; // Артикул (А-Я)
+                    case 7: filtered = filtered.OrderByDescending(p => p.Article); break; // Артикул (Я-А)
+                    case 8: filtered = filtered.OrderByDescending(p => p.LastUpdated); break; // Дата обновления
+                }
+
+                var result = filtered.ToList();
+                dataGridView1.DataSource = result;
+                ConfigureGridViewColumns();
+                UpdateStats();
+
+                // Обновляем счетчик отфильтрованных записей
+                lblFilterCount.Text = $"Найдено: {result.Count} из {allProducts.Count}";
             }
-
-            // Фильтр по наличию (нужно добавить ComboBox для этого)
-            // Пока пропускаем
-
-            // Сортировка по ID
-            filteredProducts = filteredProducts.OrderBy(p => p.Id);
-
-            // Отображаем в таблице
-            DisplayProducts(filteredProducts.ToList());
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка фильтрации: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
-        private void DisplayProducts(List<Product> products)
+        private void ConfigureGridViewColumns()
         {
-            productsGrid.Rows.Clear();
+            if (dataGridView1.DataSource == null) return;
 
-            foreach (var product in products)
+            dataGridView1.Columns.Clear();
+
+            // Создаем столбцы
+            var articleColumn = new DataGridViewTextBoxColumn
             {
-                int rowIndex = productsGrid.Rows.Add(
-                    product.Id,
-                    product.Name,
-                    product.Price,
-                    product.Quantity,
-                    product.Category,
-                    product.SKU,
-                    product.Location,
-                    product.Barcode,
-                    product.LastUpdated
-                );
+                Name = "Article",
+                HeaderText = "Артикул",
+                Width = 120,
+                DataPropertyName = "Article"
+            };
 
-                // Подсветка товаров с низким запасом
-                if (product.Quantity < 10)
+            var nameColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "Name",
+                HeaderText = "Название",
+                Width = 200,
+                DataPropertyName = "Name",
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+            };
+
+            var categoryColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "Category",
+                HeaderText = "Категория",
+                Width = 130,
+                DataPropertyName = "Category"
+            };
+
+            var quantityColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "Quantity",
+                HeaderText = "Кол-во",
+                Width = 80,
+                DataPropertyName = "Quantity",
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight }
+            };
+
+            var priceColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "Price",
+                HeaderText = "Цена",
+                Width = 100,
+                DataPropertyName = "Price",
+                DefaultCellStyle = new DataGridViewCellStyle
                 {
-                    productsGrid.Rows[rowIndex].DefaultCellStyle.BackColor = Color.LightPink;
-                    productsGrid.Rows[rowIndex].DefaultCellStyle.ForeColor = Color.DarkRed;
+                    Format = "C2",
+                    Alignment = DataGridViewContentAlignment.MiddleRight
                 }
-                else if (product.Quantity == 0)
+            };
+
+            var locationColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "Location",
+                HeaderText = "Место",
+                Width = 120,
+                DataPropertyName = "Location"
+            };
+
+            var lastUpdatedColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "LastUpdated",
+                HeaderText = "Обновлено",
+                Width = 120
+            };
+
+            // Добавляем столбцы
+            dataGridView1.Columns.AddRange(new DataGridViewColumn[] {
+                articleColumn, nameColumn, categoryColumn,
+                quantityColumn, priceColumn, locationColumn, lastUpdatedColumn
+            });
+
+            // Заполняем данные
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                var product = row.DataBoundItem as Product;
+                if (product != null)
                 {
-                    productsGrid.Rows[rowIndex].DefaultCellStyle.BackColor = Color.LightGray;
-                    productsGrid.Rows[rowIndex].DefaultCellStyle.ForeColor = Color.DarkGray;
+                    // Заполняем колонку "Обновлено"
+                    row.Cells["LastUpdated"].Value = product.LastUpdated.ToString("dd.MM.yyyy HH:mm");
+
+                    // Подсветка товаров с малым количеством
+                    if (product.Quantity < 10)
+                    {
+                        row.Cells["Quantity"].Style.BackColor = Color.LightPink;
+                        row.Cells["Quantity"].Style.ForeColor = Color.DarkRed;
+                    }
+                    else if (product.Quantity > 100)
+                    {
+                        row.Cells["Quantity"].Style.BackColor = Color.LightGreen;
+                    }
                 }
             }
 
-            // Обновляем статистику
-            UpdateStatistics(products.Count);
+            // Добавляем столбец со стоимостью как вычисляемое поле
+            var totalValueColumn = new DataGridViewTextBoxColumn
+            {
+                Name = "TotalValue",
+                HeaderText = "Стоимость",
+                Width = 120,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "C2",
+                    Alignment = DataGridViewContentAlignment.MiddleRight
+                }
+            };
+            dataGridView1.Columns.Add(totalValueColumn);
+
+            // Заполняем столбец Стоимость
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                var product = row.DataBoundItem as Product;
+                if (product != null)
+                {
+                    row.Cells["TotalValue"].Value = product.Quantity * product.Price;
+                }
+            }
         }
 
-        private void UpdateStatistics(int? filteredCount = null)
+        private void UpdateStats()
         {
-            int totalCount = allProducts?.Count ?? 0;
-            int displayCount = filteredCount ?? totalCount;
-
-            // Рассчитываем общую стоимость
-            decimal totalValue = 0;
-            if (allProducts != null)
+            try
             {
-                foreach (var product in allProducts)
+                var products = dataGridView1.DataSource as List<Product>;
+                if (products == null || products.Count == 0)
                 {
-                    totalValue += product.Price * product.Quantity;
+                    lblStats.Text = "📊 Статистика: Нет данных для отображения";
+                    return;
                 }
-            }
 
-            lblStats.Text = $"📊 Показано: {displayCount} из {totalCount} | 💰 Стоимость: {totalValue:C}";
+                var totalProducts = products.Count;
+                var totalQuantity = products.Sum(p => p.Quantity);
+                var totalValue = products.Sum(p => p.Quantity * p.Price);
+                var avgPrice = products.Average(p => p.Price);
+                var minPrice = products.Min(p => p.Price);
+                var maxPrice = products.Max(p => p.Price);
+
+                lblStats.Text = $"📊 Статистика: Товаров: {totalProducts} | Кол-во: {totalQuantity} | Стоимость: {totalValue:C2} | Цена: {avgPrice:C2} (от {minPrice:C2} до {maxPrice:C2})";
+            }
+            catch (Exception ex)
+            {
+                lblStats.Text = $"Ошибка расчета статистики: {ex.Message}";
+            }
         }
 
-        // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
+        // ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
 
         private void TxtSearch_TextChanged(object sender, EventArgs e)
         {
-            ApplyFilters();
+            // Игнорируем изменение текста если это placeholder
+            if (txtSearch.ForeColor == Color.Gray) return;
+
+            // Задержка для поиска (дебаунсинг)
+            var timer = new Timer { Interval = 300 };
+            timer.Tick += (s, args) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                ApplyFiltersAndSort();
+            };
+            timer.Start();
         }
 
         private void CmbCategoryFilter_SelectedIndexChanged(object sender, EventArgs e)
         {
-            ApplyFilters();
+            ApplyFiltersAndSort();
         }
 
-        private void ProductsGrid_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        private void CmbSortBy_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (e.RowIndex >= 0 && productsGrid.Rows[e.RowIndex].Cells["Id"].Value != null)
-            {
-                int productId = Convert.ToInt32(productsGrid.Rows[e.RowIndex].Cells["Id"].Value);
-                ShowProductDetails(productId);
-            }
+            ApplyFiltersAndSort();
         }
 
-        private void BtnAddProduct_Click(object sender, EventArgs e)
+        private void Filter_ValueChanged(object sender, EventArgs e)
         {
-            var addForm = new AddEditProductForm(null, currentUser);
-            if (addForm.ShowDialog() == DialogResult.OK)
-            {
-                MessageBox.Show("Товар успешно добавлен! Вернитесь на вкладку 'Дашборд' для обновления статистики.", "Успех");
-                // Просто закрываем эту форму или оставляем открытой
-                // this.Close(); // <- Можно раскомментировать, если хотим сразу закрыть ProductsForm
-            }
+            ApplyFiltersAndSort();
         }
 
-        private void BtnEditProduct_Click(object sender, EventArgs e)
+        private void BtnClearFilters_Click(object sender, EventArgs e)
         {
-            if (productsGrid.SelectedRows.Count == 0)
-            {
-                MessageBox.Show("Выберите товар для редактирования!", "Внимание",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            // Сброс всех фильтров
+            txtSearch.Text = "Название, артикул, описание...";
+            txtSearch.ForeColor = Color.Gray;
+            cmbCategoryFilter.SelectedIndex = 0;
+            numMinPrice.Value = 0;
+            numMaxPrice.Value = 1000000;
+            numMinQuantity.Value = 0;
+            numMaxQuantity.Value = 10000;
+            cmbSortBy.SelectedIndex = 0;
 
-            int productId = Convert.ToInt32(productsGrid.SelectedRows[0].Cells["Id"].Value);
-            var product = allProducts.FirstOrDefault(p => p.Id == productId);
+            ApplyFiltersAndSort();
+        }
 
-            if (product != null)
+        private void BtnAdd_Click(object sender, EventArgs e)
+        {
+            using (var form = new AddEditProductForm())
             {
-                var editForm = new AddEditProductForm(product, currentUser);
-                if (editForm.ShowDialog() == DialogResult.OK)
+                if (form.ShowDialog() == DialogResult.OK)
                 {
-                    LoadProducts();
-                    MessageBox.Show("Товар успешно обновлен!", "Успех",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadAllProducts(); // Перезагружаем все товары
+                    ApplyFiltersAndSort();
+                    MessageBox.Show("Товар успешно добавлен!", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
         }
 
-        private void BtnDeleteProduct_Click(object sender, EventArgs e)
+        private void BtnEdit_Click(object sender, EventArgs e)
         {
-            if (productsGrid.SelectedRows.Count == 0)
+            if (dataGridView1.SelectedRows.Count > 0)
             {
-                MessageBox.Show("Выберите товар для удаления!", "Внимание",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                var product = (Product)dataGridView1.SelectedRows[0].DataBoundItem;
+                using (var form = new AddEditProductForm(product))
+                {
+                    if (form.ShowDialog() == DialogResult.OK)
+                    {
+                        LoadAllProducts(); // Перезагружаем все товары
+                        ApplyFiltersAndSort();
+                        MessageBox.Show("Товар успешно обновлен!", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
             }
+        }
 
-            int productId = Convert.ToInt32(productsGrid.SelectedRows[0].Cells["Id"].Value);
-            var product = allProducts.FirstOrDefault(p => p.Id == productId);
-
-            if (product != null)
+        private void BtnDelete_Click(object sender, EventArgs e)
+        {
+            if (dataGridView1.SelectedRows.Count > 0)
             {
+                var product = (Product)dataGridView1.SelectedRows[0].DataBoundItem;
+
                 var result = MessageBox.Show(
                     $"Вы уверены, что хотите удалить товар?\n\n" +
-                    $"Название: {product.Name}\n" +
-                    $"Артикул: {product.SKU}\n" +
-                    $"Количество: {product.Quantity} шт.",
+                    $"📦 Название: {product.Name}\n" +
+                    $"🏷️ Артикул: {product.Article}\n" +
+                    $"📊 Количество: {product.Quantity}\n" +
+                    $"💰 Цена: {product.Price:C}",
                     "Подтверждение удаления",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning);
 
                 if (result == DialogResult.Yes)
                 {
-                    // Удаляем товар
-                    allProducts.Remove(product);
-                    dataService.DeleteProduct(productId);
+                    try
+                    {
+                        var products = DataService.LoadProducts();
+                        products.RemoveAll(p => p.Article == product.Article);
+                        DataService.SaveProducts(products);
 
-                    LoadProducts();
-                    MessageBox.Show("Товар успешно удален!", "Успех",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        LoadAllProducts();
+                        ApplyFiltersAndSort();
+                        MessageBox.Show("Товар успешно удален", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка удаления: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
             }
         }
 
-        private void ShowProductDetails(int productId)
+        private void BtnRefresh_Click(object sender, EventArgs e)
         {
-            var product = allProducts.FirstOrDefault(p => p.Id == productId);
-            if (product != null)
-            {
-                string details = $"📦 Детали товара\n\n" +
-                               $"ID: {product.Id}\n" +
-                               $"Название: {product.Name}\n" +
-                               $"Описание: {product.Description ?? "(нет)"}\n" +
-                               $"Цена: {product.Price:C}\n" +
-                               $"Количество: {product.Quantity} шт.\n" +
-                               $"Категория: {product.Category}\n" +
-                               $"Артикул: {product.SKU}\n" +
-                               $"Штрихкод: {product.Barcode}\n" +
-                               $"Место: {product.Location}\n" +
-                               $"Обновлено: {product.LastUpdated:dd.MM.yyyy HH:mm}";
+            LoadAllProducts();
+            ApplyFiltersAndSort();
+        }
 
-                MessageBox.Show(details, "Информация о товаре",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+        private void DataGridView1_SelectionChanged(object sender, EventArgs e)
+        {
+            bool hasSelection = dataGridView1.SelectedRows.Count > 0;
+            btnEdit.Enabled = hasSelection;
+            btnDelete.Enabled = hasSelection;
+        }
+
+        private void DataGridView1_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0)
+            {
+                BtnEdit_Click(sender, e);
             }
+        }
+
+        private void BtnExport_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (SaveFileDialog sfd = new SaveFileDialog())
+                {
+                    sfd.Filter = "CSV файлы (*.csv)|*.csv";
+                    sfd.FileName = $"товары_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+                    if (sfd.ShowDialog() == DialogResult.OK)
+                    {
+                        var products = (List<Product>)dataGridView1.DataSource;
+                        DataService.ExportToCsv(products, sfd.FileName);
+
+                        if (MessageBox.Show(
+                            $"Экспорт завершен успешно!\n\n" +
+                            $"Файл: {sfd.FileName}\n" +
+                            $"Записей: {products.Count}\n\n" +
+                            $"Открыть файл?",
+                            "Экспорт завершен",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Information) == DialogResult.Yes)
+                        {
+                            System.Diagnostics.Process.Start(sfd.FileName);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка экспорта: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // Горячие клавиши
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            switch (keyData)
+            {
+                case Keys.Control | Keys.F:
+                    txtSearch.Focus();
+                    if (txtSearch.Text == "Название, артикул, описание...")
+                    {
+                        txtSearch.Text = "";
+                        txtSearch.ForeColor = Color.Black;
+                    }
+                    txtSearch.SelectAll();
+                    return true;
+                case Keys.F5:
+                    BtnRefresh_Click(null, null);
+                    return true;
+                case Keys.Control | Keys.N:
+                    BtnAdd_Click(null, null);
+                    return true;
+                case Keys.Delete when btnDelete.Enabled:
+                    BtnDelete_Click(null, null);
+                    return true;
+                case Keys.Enter when btnEdit.Enabled:
+                    BtnEdit_Click(null, null);
+                    return true;
+                case Keys.Control | Keys.E:
+                    BtnClearFilters_Click(null, null);
+                    return true;
+                case Keys.Control | Keys.S:
+                    BtnExport_Click(null, null);
+                    return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
     }
 }

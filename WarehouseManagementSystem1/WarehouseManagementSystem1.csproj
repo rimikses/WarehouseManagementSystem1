@@ -152,13 +152,28 @@
     <Compile Include="AddEditProductForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="AddEditProductForm.Designer.cs">
-      <DependentUpon>AddEditProductForm.cs</DependentUpon>
+    <Compile Include="CategoryManagerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CustomerEditForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CustomerManagerForm.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="DataTestForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FileService.cs" />
+    <Compile Include="InvoiceArchiveForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="InvoiceTransactionForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="InvoiceTypeSelectionForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="LoginForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -168,11 +183,15 @@
     <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Models\Customer.cs" />
+    <Compile Include="Models\Invoice.cs" />
+    <Compile Include="Models\InvoiceType.cs" />
     <Compile Include="ProductsForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="ProductsForm.Designer.cs">
-      <DependentUpon>ProductsForm.cs</DependentUpon>
+    <Compile Include="QuickFix.cs" />
+    <Compile Include="ReportsForm.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Services\DataService.cs" />
     <Compile Include="Enums\TransactionType.cs" />
@@ -191,6 +210,15 @@
     <Compile Include="Models\WarehouseLocation.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SupplierManagerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="TransactionForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="TransactionHistoryForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 using WarehouseManagementSystem1.Enums;
@@ -11,14 +12,32 @@ namespace WarehouseManagementSystem1.Services
 {
     public class DataService
     {
+        public List<Customer> Customers { get; private set; }
+        public List<Invoice> Invoices { get; private set; }
+
         private static DataService _instance;
         public static DataService Instance => _instance ?? (_instance = new DataService());
 
+        // ДОБАВЛЯЕМ событие для обновления UI
+        public event Action DataChanged; // ← ВСТАВЛЯЕМ ЭТУ СТРОКУ
+
+        // ДОБАВЛЕНО: Статические методы для обратной совместимости
+        public static List<Product> LoadProducts()
+        {
+            return Instance.Products ?? new List<Product>();
+        }
+
+        public static void SaveProducts(List<Product> products)
+        {
+            Instance.Products = products;
+            Instance.SaveAllData();
+        }
+
         public List<User> Users { get; private set; }
-        public List<Product> Products { get; private set; }
+        public List<Product> Products { get; set; } // Изменено на set
         public List<Category> Categories { get; private set; }
         public List<Supplier> Suppliers { get; private set; }
-        public List<Transaction> Transactions { get; private set; } = new List<Transaction>(); // НОВОЕ свойство
+        public List<Transaction> Transactions { get; private set; } = new List<Transaction>();
 
         private string _dataPath = "Data";
 
@@ -38,7 +57,6 @@ namespace WarehouseManagementSystem1.Services
                     Directory.CreateDirectory(_dataPath);
                 }
 
-                // Проверяем, есть ли JSON файлы
                 bool hasUsers = File.Exists(Path.Combine(_dataPath, "users.json"));
                 bool hasProducts = File.Exists(Path.Combine(_dataPath, "products.json"));
 
@@ -56,7 +74,6 @@ namespace WarehouseManagementSystem1.Services
                     LoadAllData();
                 }
 
-                // Двойная проверка
                 if (Users == null || Users.Count == 0)
                 {
                     Console.WriteLine("4. Данные пустые, создаем заново...");
@@ -80,6 +97,7 @@ namespace WarehouseManagementSystem1.Services
             // 1. Пользователи
             Users = new List<User>
             {
+
                 new User
                 {
                     Id = 1,
@@ -107,7 +125,9 @@ namespace WarehouseManagementSystem1.Services
                     Role = UserRole.Worker,
                     CreatedDate = DateTime.Now
                 }
+
             };
+
 
             // 2. Категории
             Categories = new List<Category>
@@ -144,6 +164,7 @@ namespace WarehouseManagementSystem1.Services
                 new Product
                 {
                     Id = 1,
+                    Article = "NB-HP-001", // ДОБАВЛЕНО
                     Name = "Ноутбук HP Pavilion",
                     Description = "15-дюймовый, Intel Core i5, 8GB RAM",
                     Price = 54999.99m,
@@ -157,6 +178,7 @@ namespace WarehouseManagementSystem1.Services
                 new Product
                 {
                     Id = 2,
+                    Article = "MS-LG-MX3", // ДОБАВЛЕНО
                     Name = "Мышь Logitech MX Master 3",
                     Description = "Беспроводная, лазерная мышь",
                     Price = 7499.50m,
@@ -170,6 +192,7 @@ namespace WarehouseManagementSystem1.Services
                 new Product
                 {
                     Id = 3,
+                    Article = "PAP-A4-500", // ДОБАВЛЕНО
                     Name = "Бумага А4 Svetocopy",
                     Description = "Пачка 500 листов, 80г/м²",
                     Price = 450.00m,
@@ -190,12 +213,11 @@ namespace WarehouseManagementSystem1.Services
                 if (!Directory.Exists(_dataPath))
                     Directory.CreateDirectory(_dataPath);
 
-                // Сохраняем все коллекции
                 SaveToFile("users.json", Users);
                 SaveToFile("products.json", Products);
                 SaveToFile("categories.json", Categories);
                 SaveToFile("suppliers.json", Suppliers);
-                SaveToFile("transactions.json", Transactions); // НОВОЕ: сохраняем транзакции
+                SaveToFile("transactions.json", Transactions);
 
                 Console.WriteLine("✅ Все данные сохранены");
             }
@@ -227,7 +249,7 @@ namespace WarehouseManagementSystem1.Services
                 Products = LoadFromFile<Product>("products.json") ?? new List<Product>();
                 Categories = LoadFromFile<Category>("categories.json") ?? new List<Category>();
                 Suppliers = LoadFromFile<Supplier>("suppliers.json") ?? new List<Supplier>();
-                Transactions = LoadFromFile<Transaction>("transactions.json") ?? new List<Transaction>(); // НОВОЕ: загружаем транзакции
+                Transactions = LoadFromFile<Transaction>("transactions.json") ?? new List<Transaction>();
 
                 Console.WriteLine("✅ Данные загружены");
             }
@@ -260,8 +282,38 @@ namespace WarehouseManagementSystem1.Services
             }
         }
 
-        // ===== ПУБЛИЧНЫЕ МЕТОДЫ =====
+        // ДОБАВЛЕНО: Метод экспорта
+        public static void ExportToCsv(List<Product> products, string filePath)
+        {
+            try
+            {
+                var lines = new List<string>();
 
+                // Заголовок
+                lines.Add("Артикул;Название;Категория;Количество;Цена;Описание;Стоимость");
+
+                // Данные
+                foreach (var product in products)
+                {
+                    var line = $"\"{product.Article}\";" +
+                               $"\"{product.Name}\";" +
+                               $"\"{product.Category}\";" +
+                               $"{product.Quantity};" +
+                               $"{product.Price:F2};" +
+                               $"\"{product.Description ?? ""}\";" +
+                               $"{(product.Quantity * product.Price):F2}";
+                    lines.Add(line);
+                }
+
+                File.WriteAllLines(filePath, lines, Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Ошибка экспорта: {ex.Message}");
+            }
+        }
+
+        // Остальные методы остаются без изменений
         public User Authenticate(string username, string password)
         {
             if (Users == null) return null;
@@ -278,6 +330,7 @@ namespace WarehouseManagementSystem1.Services
             Console.WriteLine("🔄 Создание тестовых данных...");
             CreateDefaultData();
             SaveAllData();
+            DataChanged?.Invoke(); // ← ДОБАВЛЯЕМ ВЫЗОВ СОБЫТИЯ
             Console.WriteLine($"✅ Создано: {Users.Count} пользователей, {Products.Count} товаров");
         }
 
@@ -299,11 +352,24 @@ namespace WarehouseManagementSystem1.Services
         {
             if (Products == null) Products = new List<Product>();
 
-            int maxId = Products.Any() ? Products.Max(p => p.Id) : 0;
+            // ИЗМЕНЯЕМ генерацию ID для надежности:
+            int maxId = 0;
+            if (Products.Any())
+            {
+                maxId = Products.Max(p => p.Id);
+
+                // ДОБАВЛЯЕМ проверку на дубликаты ID
+                while (Products.Any(p => p.Id == maxId + 1))
+                {
+                    maxId++;
+                }
+            }
+
             product.Id = maxId + 1;
             product.LastUpdated = DateTime.Now;
             Products.Add(product);
             SaveAllData();
+            DataChanged?.Invoke(); // ← ДОБАВЛЯЕМ ВЫЗОВ СОБЫТИЯ
         }
 
         public void UpdateProduct(Product updatedProduct)
@@ -317,6 +383,7 @@ namespace WarehouseManagementSystem1.Services
                     updatedProduct.LastUpdated = DateTime.Now;
                     Products[i] = updatedProduct;
                     SaveAllData();
+                    DataChanged?.Invoke(); // ← ДОБАВЛЯЕМ ВЫЗОВ СОБЫТИЯ
                     return;
                 }
             }
@@ -331,16 +398,38 @@ namespace WarehouseManagementSystem1.Services
             {
                 Products.Remove(productToRemove);
                 SaveAllData();
+                DataChanged?.Invoke(); // ← ДОБАВЛЯЕМ ВЫЗОВ СОБЫТИЯ
             }
         }
 
-        // ===== МЕТОДЫ ДЛЯ ОПЕРАЦИЙ (НОВЫЕ) =====
+        public Product GetProductById(int productId)
+        {
+            return Products?.FirstOrDefault(p => p.Id == productId);
+        }
+
+        public User GetUserById(int userId)
+        {
+            return Users?.FirstOrDefault(u => u.Id == userId);
+        }
+
+        public List<Product> GetProductsByLocation(string location)
+        {
+            return Products?.Where(p => p.Location == location).ToList()
+                   ?? new List<Product>();
+        }
+
+        public List<Transaction> GetTransactionsByProduct(int productId)
+        {
+            return Transactions?.Where(t => t.ProductId == productId)
+                               .OrderByDescending(t => t.TransactionDate)
+                               .ToList()
+                   ?? new List<Transaction>();
+        }
 
         public bool ProcessTransaction(Transaction transaction)
         {
             try
             {
-                // 1. Находим товар
                 var product = Products?.FirstOrDefault(p => p.Id == transaction.ProductId);
                 if (product == null)
                 {
@@ -349,7 +438,6 @@ namespace WarehouseManagementSystem1.Services
                     return false;
                 }
 
-                // 2. Проверяем остаток для РАСХОДА или ПЕРЕМЕЩЕНИЯ
                 if (transaction.Type == TransactionType.Расход || transaction.Type == TransactionType.Перемещение)
                 {
                     if (product.Quantity < transaction.Quantity)
@@ -360,7 +448,6 @@ namespace WarehouseManagementSystem1.Services
                     }
                 }
 
-                // 3. Выполняем операцию
                 switch (transaction.Type)
                 {
                     case TransactionType.Приход:
@@ -374,18 +461,55 @@ namespace WarehouseManagementSystem1.Services
                     case TransactionType.Перемещение:
                         product.Quantity -= transaction.Quantity;
                         transaction.FromLocation = transaction.FromLocation ?? product.Location;
+
+                        // ДОБАВЛЯЕМ проверку целевого местоположения
+                        if (string.IsNullOrWhiteSpace(transaction.ToLocation))
+                        {
+                            MessageBox.Show("Для перемещения укажите целевое местоположение!",
+                                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return false;
+                        }
+
+                        // Проверяем, существует ли товар в целевом месте
+                        var targetProduct = Products.FirstOrDefault(p =>
+                            p.Article == product.Article && p.Location == transaction.ToLocation);
+
+                        if (targetProduct != null)
+                        {
+                            // Если товар уже есть в целевом месте, увеличиваем количество
+                            targetProduct.Quantity += transaction.Quantity;
+                            targetProduct.LastUpdated = DateTime.Now;
+                        }
+                        else
+                        {
+                            // Если товара нет в целевом месте, создаем новую запись
+                            var newProduct = new Product
+                            {
+                                Id = Products.Any() ? Products.Max(p => p.Id) + 1 : 1,
+                                Article = product.Article,
+                                Name = product.Name,
+                                Description = product.Description,
+                                Price = product.Price,
+                                Quantity = transaction.Quantity,
+                                Category = product.Category,
+                                SKU = product.SKU,
+                                Barcode = product.Barcode,
+                                Location = transaction.ToLocation,
+                                LastUpdated = DateTime.Now
+                            };
+                            Products.Add(newProduct);
+                        }
                         break;
                 }
 
                 product.LastUpdated = DateTime.Now;
 
-                // 4. Записываем операцию в журнал
                 transaction.Id = Transactions.Any() ? Transactions.Max(t => t.Id) + 1 : 1;
                 transaction.TransactionDate = DateTime.Now;
                 Transactions.Add(transaction);
 
-                // 5. Сохраняем всё
                 SaveAllData();
+                DataChanged?.Invoke(); // ← ДОБАВЛЯЕМ ВЫЗОВ СОБЫТИЯ
 
                 Console.WriteLine($"✅ Операция проведена: {transaction.Type} товара '{product.Name}' x{transaction.Quantity}");
                 return true;

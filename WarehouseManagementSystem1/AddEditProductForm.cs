@@ -1,246 +1,228 @@
 ﻿using System;
 using System.Drawing;
-using System.Windows.Forms;
-using WarehouseManagementSystem1.Enums;
-using WarehouseManagementSystem1.Models;
-using WarehouseManagementSystem1.Services;
 using System.Linq;
+using System.Windows.Forms;
+using WarehouseManagementSystem1.Models; // ДОБАВЬТЕ ЭТУ СТРОКУ!
+using WarehouseManagementSystem1.Services;
 
 namespace WarehouseManagementSystem1
 {
     public partial class AddEditProductForm : Form
     {
-        private Product product;
-        private User currentUser;
-        private DataService dataService;
-        private bool isEditMode;
+        private System.ComponentModel.IContainer components = null; // Добавлено здесь
 
-        public AddEditProductForm(Product productToEdit, User user)
+        private TextBox txtArticle;
+        private TextBox txtName;
+        private TextBox txtCategory;
+        private NumericUpDown nudQuantity;
+        private NumericUpDown nudPrice;
+        private TextBox txtDescription;
+        private Button btnSave;
+        private Button btnCancel;
+        private Button btnGenerateArticle;
+
+        private Product _product;
+        private bool _isEditMode;
+
+        public AddEditProductForm()
         {
-            product = productToEdit;
-            currentUser = user;
-            dataService = DataService.Instance;
-            isEditMode = productToEdit != null;
-
+            _isEditMode = false;
             InitializeComponent();
-            CreateForm();
-
-            if (isEditMode)
-            {
-                LoadProductData();
-            }
         }
 
-        private void CreateForm()
+        public AddEditProductForm(Product product)
         {
-            this.Text = isEditMode ? "✏️ Редактирование товара" : "➕ Добавление товара";
-            this.Size = new Size(500, 500);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.White;
+            _product = product;
+            _isEditMode = true;
+            InitializeComponent();
+            LoadProductData();
+        }
+
+        private void InitializeComponent()
+        {
+            this.Text = _isEditMode ? "Редактировать товар" : "Добавить товар";
+            this.Size = new Size(500, 400);
+            this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
+            this.MinimizeBox = false;
 
-            // Создаем элементы управления
-            var lblName = new Label { Text = "Название:", Location = new Point(30, 30), Size = new Size(100, 25) };
-            var txtName = new TextBox { Location = new Point(140, 30), Size = new Size(300, 25), Name = "txtName" };
+            var panel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20) };
 
-            var lblDesc = new Label { Text = "Описание:", Location = new Point(30, 70), Size = new Size(100, 25) };
-            var txtDescription = new TextBox { Location = new Point(140, 70), Size = new Size(300, 60), Multiline = true, Height = 60, Name = "txtDescription" };
+            int y = 20;
+            int labelWidth = 120;
+            int controlWidth = 300;
 
-            var lblPrice = new Label { Text = "Цена:", Location = new Point(30, 150), Size = new Size(100, 25) };
-            var txtPrice = new TextBox { Location = new Point(140, 150), Size = new Size(150, 25), Name = "txtPrice" };
+            // Артикул
+            var lblArticle = new Label { Text = "Артикул*:", Location = new Point(0, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
+            txtArticle = new TextBox { Location = new Point(labelWidth + 10, y), Size = new Size(controlWidth - 100, 25) };
+            btnGenerateArticle = new Button { Text = "Сгенерировать", Location = new Point(labelWidth + controlWidth - 90, y), Size = new Size(90, 25) };
+            btnGenerateArticle.Click += BtnGenerateArticle_Click;
+            if (_isEditMode) txtArticle.Enabled = false;
+            y += 35;
 
-            var lblQuantity = new Label { Text = "Количество:", Location = new Point(30, 190), Size = new Size(100, 25) };
-            var txtQuantity = new TextBox { Location = new Point(140, 190), Size = new Size(150, 25), Name = "txtQuantity", Text = "0" };
+            // Название
+            var lblName = new Label { Text = "Название*:", Location = new Point(0, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
+            txtName = new TextBox { Location = new Point(labelWidth + 10, y), Size = new Size(controlWidth, 25) };
+            y += 35;
 
-            var lblCategory = new Label { Text = "Категория:", Location = new Point(30, 230), Size = new Size(100, 25) };
-            var cmbCategory = new ComboBox { Location = new Point(140, 230), Size = new Size(200, 25), Name = "cmbCategory", DropDownStyle = ComboBoxStyle.DropDown };
+            // Категория
+            var lblCategory = new Label { Text = "Категория*:", Location = new Point(0, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
+            txtCategory = new TextBox { Location = new Point(labelWidth + 10, y), Size = new Size(controlWidth, 25) };
+            y += 35;
 
-            var lblSKU = new Label { Text = "Артикул:", Location = new Point(30, 270), Size = new Size(100, 25) };
-            var txtSKU = new TextBox { Location = new Point(140, 270), Size = new Size(200, 25), Name = "txtSKU" };
+            // Количество
+            var lblQuantity = new Label { Text = "Количество:", Location = new Point(0, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
+            nudQuantity = new NumericUpDown { Location = new Point(labelWidth + 10, y), Size = new Size(controlWidth, 25), Minimum = 0, Maximum = 1000000 };
+            y += 35;
 
-            var lblBarcode = new Label { Text = "Штрихкод:", Location = new Point(30, 310), Size = new Size(100, 25) };
-            var txtBarcode = new TextBox { Location = new Point(140, 310), Size = new Size(200, 25), Name = "txtBarcode" };
+            // Цена
+            var lblPrice = new Label { Text = "Цена*:", Location = new Point(0, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
+            nudPrice = new NumericUpDown { Location = new Point(labelWidth + 10, y), Size = new Size(controlWidth, 25), Minimum = 0, Maximum = 10000000, DecimalPlaces = 2 };
+            y += 35;
 
-            var lblLocation = new Label { Text = "Место:", Location = new Point(30, 350), Size = new Size(100, 25) };
-            var txtLocation = new TextBox { Location = new Point(140, 350), Size = new Size(200, 25), Name = "txtLocation" };
-
-            // Загружаем категории
-            LoadCategories(cmbCategory);
+            // Описание
+            var lblDescription = new Label { Text = "Описание:", Location = new Point(0, y), Size = new Size(labelWidth, 25), TextAlign = ContentAlignment.MiddleRight };
+            txtDescription = new TextBox { Location = new Point(labelWidth + 10, y), Size = new Size(controlWidth, 60), Multiline = true };
+            y += 70;
 
             // Кнопки
-            var btnSave = new Button
+            btnSave = new Button { Text = "Сохранить", Location = new Point(labelWidth + 10, y), Size = new Size(120, 35) };
+            btnSave.Click += BtnSave_Click;
+
+            btnCancel = new Button { Text = "Отмена", Location = new Point(labelWidth + 140, y), Size = new Size(120, 35) };
+            btnCancel.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
+
+            panel.Controls.AddRange(new Control[]
             {
-                Text = isEditMode ? "💾 Сохранить" : "➕ Добавить",
-                Location = new Point(140, 390),
-                Size = new Size(120, 35),
-                BackColor = Color.FromArgb(76, 175, 80),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Name = "btnSave"
-            };
+                lblArticle, txtArticle, btnGenerateArticle,
+                lblName, txtName,
+                lblCategory, txtCategory,
+                lblQuantity, nudQuantity,
+                lblPrice, nudPrice,
+                lblDescription, txtDescription,
+                btnSave, btnCancel
+            });
 
-            var btnCancel = new Button
-            {
-                Text = "❌ Отмена",
-                Location = new Point(270, 390),
-                Size = new Size(120, 35),
-                BackColor = Color.LightGray,
-                ForeColor = Color.Black,
-                Name = "btnCancel"
-            };
-
-            // Добавляем элементы на форму
-            this.Controls.Add(lblName);
-            this.Controls.Add(txtName);
-            this.Controls.Add(lblDesc);
-            this.Controls.Add(txtDescription);
-            this.Controls.Add(lblPrice);
-            this.Controls.Add(txtPrice);
-            this.Controls.Add(lblQuantity);
-            this.Controls.Add(txtQuantity);
-            this.Controls.Add(lblCategory);
-            this.Controls.Add(cmbCategory);
-            this.Controls.Add(lblSKU);
-            this.Controls.Add(txtSKU);
-            this.Controls.Add(lblBarcode);
-            this.Controls.Add(txtBarcode);
-            this.Controls.Add(lblLocation);
-            this.Controls.Add(txtLocation);
-            this.Controls.Add(btnSave);
-            this.Controls.Add(btnCancel);
-
-            // Обработчики событий
-            btnSave.Click += (sender, e) => SaveProduct(
-                txtName.Text,
-                txtDescription.Text,
-                txtPrice.Text,
-                txtQuantity.Text,
-                cmbCategory.Text,
-                txtSKU.Text,
-                txtBarcode.Text,
-                txtLocation.Text
-            );
-
-            btnCancel.Click += (sender, e) =>
-            {
-                this.DialogResult = DialogResult.Cancel;
-                this.Close();
-            };
-
-            // Настройка клавиш
-            this.AcceptButton = btnSave;
-            this.CancelButton = btnCancel;
-        }
-
-        private void LoadCategories(ComboBox cmbCategory)
-        {
-            cmbCategory.Items.Clear();
-
-            // Добавляем стандартные категории
-            cmbCategory.Items.Add("Электроника");
-            cmbCategory.Items.Add("Офисные товары");
-            cmbCategory.Items.Add("Хозтовары");
-            cmbCategory.Items.Add("Мебель");
-            cmbCategory.Items.Add("Инструменты");
-
-            if (dataService.Products != null)
-            {
-                // Добавляем уникальные категории из существующих товаров
-                foreach (var product in dataService.Products)
-                {
-                    if (!string.IsNullOrEmpty(product.Category) && !cmbCategory.Items.Contains(product.Category))
-                    {
-                        cmbCategory.Items.Add(product.Category);
-                    }
-                }
-            }
-
-            if (cmbCategory.Items.Count > 0)
-            {
-                cmbCategory.SelectedIndex = 0;
-            }
+            this.Controls.Add(panel);
         }
 
         private void LoadProductData()
         {
-            if (product == null) return;
+            txtArticle.Text = _product.Article;
+            txtName.Text = _product.Name;
+            txtCategory.Text = _product.Category;
+            nudQuantity.Value = _product.Quantity;
+            nudPrice.Value = _product.Price;
+            txtDescription.Text = _product.Description ?? "";
+        }
 
-            // Находим элементы управления по имени
-            foreach (Control control in this.Controls)
+        private void BtnGenerateArticle_Click(object sender, EventArgs e)
+        {
+            txtArticle.Text = $"ART{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+        }
+
+        private void BtnSave_Click(object sender, EventArgs e)
+        {
+            if (!ValidateInput())
+                return;
+
+            try
             {
-                if (control.Name == "txtName") control.Text = product.Name;
-                if (control.Name == "txtDescription") control.Text = product.Description;
-                if (control.Name == "txtPrice") control.Text = product.Price.ToString();
-                if (control.Name == "txtQuantity") control.Text = product.Quantity.ToString();
-                if (control.Name == "cmbCategory") ((ComboBox)control).Text = product.Category;
-                if (control.Name == "txtSKU") control.Text = product.SKU;
-                if (control.Name == "txtBarcode") control.Text = product.Barcode;
-                if (control.Name == "txtLocation") control.Text = product.Location;
+                var products = DataService.LoadProducts(); // Это теперь работает
+
+                if (!_isEditMode)
+                {
+                    // Проверка уникальности артикула
+                    if (products.Any(p => p.Article == txtArticle.Text))
+                    {
+                        MessageBox.Show("Товар с таким артикулом уже существует!", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    products.Add(new Product
+                    {
+                        Article = txtArticle.Text,
+                        Name = txtName.Text,
+                        Category = txtCategory.Text,
+                        Quantity = (int)nudQuantity.Value,
+                        Price = nudPrice.Value,
+                        Description = txtDescription.Text
+                    });
+                }
+                else
+                {
+                    // Обновление существующего товара
+                    var existingProduct = products.FirstOrDefault(p => p.Article == _product.Article);
+                    if (existingProduct != null)
+                    {
+                        existingProduct.Name = txtName.Text;
+                        existingProduct.Category = txtCategory.Text;
+                        existingProduct.Quantity = (int)nudQuantity.Value;
+                        existingProduct.Price = nudPrice.Value;
+                        existingProduct.Description = txtDescription.Text;
+                    }
+                }
+
+                DataService.SaveProducts(products);
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка сохранения: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void SaveProduct(string name, string description, string priceText, string quantityText,
-                                string category, string sku, string barcode, string location)
+        private bool ValidateInput()
         {
-            // Валидация
-            if (string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(txtArticle.Text))
             {
-                MessageBox.Show("Введите название товара!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                MessageBox.Show("Введите артикул товара!", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtArticle.Focus();
+                return false;
             }
 
-            if (!decimal.TryParse(priceText, out decimal price) || price <= 0)
+            if (string.IsNullOrWhiteSpace(txtName.Text))
             {
-                MessageBox.Show("Введите корректную цену!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                MessageBox.Show("Введите название товара!", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtName.Focus();
+                return false;
             }
 
-            if (!int.TryParse(quantityText, out int quantity) || quantity < 0)
+            if (string.IsNullOrWhiteSpace(txtCategory.Text))
             {
-                MessageBox.Show("Введите корректное количество!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                MessageBox.Show("Введите категорию товара!", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtCategory.Focus();
+                return false;
             }
 
-            if (isEditMode)
+            if (nudPrice.Value <= 0)
             {
-                // Обновляем существующий товар
-                product.Name = name;
-                product.Description = description;
-                product.Price = price;
-                product.Quantity = quantity;
-                product.Category = category;
-                product.SKU = sku;
-                product.Barcode = barcode;
-                product.Location = location;
-                product.LastUpdated = DateTime.Now;
-
-                dataService.UpdateProduct(product);
+                MessageBox.Show("Цена должна быть больше 0!", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                nudPrice.Focus();
+                return false;
             }
-            else
+
+            return true;
+        }
+
+        // Добавлено: метод Dispose ВНУТРИ класса
+        protected override void Dispose(bool disposing)
+        {
+            try
             {
-                // Создаем новый товар
-                var newProduct = new Product
+                if (disposing)
                 {
-                    Name = name,
-                    Description = description,
-                    Price = price,
-                    Quantity = quantity,
-                    Category = category,
-                    SKU = sku,
-                    Barcode = barcode,
-                    Location = location,
-                    LastUpdated = DateTime.Now
-                };
-
-                dataService.AddProduct(newProduct);
+                    // Освободить управляемые ресурсы
+                    if (components != null)
+                        components.Dispose();
+                }
             }
-
-            this.DialogResult = DialogResult.OK;
-            this.Close();
+            finally
+            {
+                base.Dispose(disposing);
+            }
         }
     }
 }

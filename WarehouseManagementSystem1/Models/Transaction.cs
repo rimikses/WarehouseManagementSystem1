@@ -1,6 +1,5 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using WarehouseManagementSystem1.Enums;
 
 namespace WarehouseManagementSystem1.Models
@@ -14,19 +13,28 @@ namespace WarehouseManagementSystem1.Models
         public DateTime TransactionDate { get; set; } = DateTime.Now;
 
         [Required]
-        public TransactionType Type { get; set; } // Приход, Расход, Перемещение
+        public TransactionType Type { get; set; }
 
         [Required]
         public int ProductId { get; set; }
-
-        // Навигационное свойство (ссылка на товар)
         public virtual Product Product { get; set; }
 
         [Required]
         [Range(1, int.MaxValue, ErrorMessage = "Количество должно быть положительным")]
         public int Quantity { get; set; }
 
-        // Для прихода/расхода: откуда/куда. Для перемещения: откуда и куда.
+        // Для связи с накладными
+        public int? InvoiceId { get; set; }
+        public virtual Invoice Invoice { get; set; }
+
+        // Для прихода
+        public int? SupplierId { get; set; }
+        public virtual Supplier Supplier { get; set; }
+
+        // Для расхода
+        public int? CustomerId { get; set; }
+        public virtual Customer Customer { get; set; }
+
         public string FromLocation { get; set; }
         public string ToLocation { get; set; }
 
@@ -34,12 +42,9 @@ namespace WarehouseManagementSystem1.Models
         public string Comments { get; set; }
 
         [Required]
-        public int UserId { get; set; } // Кто выполнил операцию
-
-        // Навигационное свойство на пользователя (опционально, но полезно)
+        public int UserId { get; set; }
         public virtual User User { get; set; }
 
-        // Уникальный номер документа (накладной, ордера)
         [StringLength(50)]
         public string DocumentNumber { get; set; }
     }
