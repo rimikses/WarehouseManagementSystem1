@@ -108,7 +108,7 @@ namespace WarehouseManagementSystem1
 
             // Информационная панель (внизу)
             lblInfo = new Label();
-            lblInfo.Text = "© 2024 Система складского учета. Все права защищены.";
+            lblInfo.Text = "© 2025 Система складского учета. Все права защищены.";
             lblInfo.Font = new Font("Consolas", 8);
             lblInfo.ForeColor = Color.DarkGray;
             lblInfo.Location = new Point(50, 370);
@@ -143,7 +143,7 @@ namespace WarehouseManagementSystem1
                            "• Проведение операций (приход/расход/перемещение)\n" +
                            "• Отчетность и аналитика\n" +
                            "• Управление пользователями\n\n" +
-                           "© 2024 Все права защищены.";
+                           "© 2025 Все права защищены.";
 
             MessageBox.Show(aboutText, "О программе",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
